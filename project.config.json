@@ -1,0 +1,18 @@
+{
+  "packageName": "@xyb-community/esophageal-workbench",
+  "title": "小咽宝 EsopPal 食管癌工作台（品牌占位）",
+  "repository": "https://github.com/xyb-community/esophageal-workbench",
+  "description": "本机优先的食管癌吞咽分级、进食通路、根治性放化疗路径与复诊准备工作台",
+  "slug": "esophageal",
+  "targetUsers": "食管鳞癌与食管胃结合部腺癌患者及照护者",
+  "scenario": "吞咽困难程度变化影响治疗选择；支架/鼻饲/造瘘等进食通路决策与记录；根治性放化疗后免疫巩固随访；吻合口狭窄扩张与营养管理",
+  "completion": "得到来源可追溯、可核对的个人病程档案：分段与病理档案、吞咽分级序列、进食通路记录、体重与白蛋白趋势、放化疗疗程与复诊准备材料；所有候选信息经用户核对入档，不提供诊断与治疗建议",
+  "coreFlow": [
+    "选择本机资料目录并导入病理/影像/检验报告",
+    "核对候选信息，建立分段病理与分期档案",
+    "记录吞咽分级与进食通路变化",
+    "按疗程整理放化疗与免疫治疗记录",
+    "生成复诊与营养随访准备材料"
+  ],
+  "layoutMode": "business-first"
+}
