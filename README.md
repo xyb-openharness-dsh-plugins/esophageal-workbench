@@ -1,8 +1,11 @@
 # 小咽宝 EsopPal 食管癌工作台
 
-## Git开发快照 · 2026-10-20
+## 开发版 v0.1.0 · 2026-10-21
 
-补录D9仓库纳管决定、实际仓库身份及Git同步与市场投稿的边界；当前仍是设计审定阶段。 包版本保持`0.1.0`；这是开发快照，正式发布状态另行记录。核验结果、已知问题及同步范围见 [本次Git记录](docs/GIT-SYNC-2026-10-20.md)。
+原型（G2）→ 数据层（G3）→ 开发版骨架已走通：11 个一级页、25 张表（176 列）、2 档演示档案
+× 6 个月（2026-04-20 → 2026-10-18）59 项指标 / 666 个数据点、10 条真实登记摘录。
+`npm run check` 全绿（版本同步 → 语法 → 冻结合同 → 文案红线 → 列一致性 → 单测 → 包结构）。
+**未做**：DSH Desktop 实机装机验证（P2 未验证），因此不写"装机通过"。
 
 
 简体中文 · EsopPal Esophageal Cancer Workbench
@@ -11,10 +14,13 @@
 
 ## 当前状态（v0.1.0，如实）
 
-- **设计审定阶段**：已交付 SPEC v0.1（`docs/SPEC.md`）、HTML 交互 demo（`prototypes/v0.1/`）、用户研究假设文档；G1/G2 审定进行中，未逐页签认。
-- 结直肠癌为家族样板癌种，走完整链路（SPEC → demo → 2026 临床数据 → SQLite）；本癌种先到 SPEC 草案，样板确认后复用骨架批量产出。
-- `dsh/index.js` 与 `lib/client.js` 为脚手架占位，**尚未接入 DSH Desktop 实装**，未实机安装验证；`docs/02-DSH-CONTRACT.md` 与 `docs/09-WORKBENCH-STATUS.md` 记录了接入合同。
-- 数据结构（`schema/`）在 G3 通过前不会建表。
+- **原型**：`prototypes/v0.2/` 为定稿快照（G2），`file://` 可只读打开，改动请另开新版本目录。
+- **开发版**：`public/`（原生 ESM，无构建）+ `dsh/`（本机 sqlite、`/api/bootstrap`）+ `lib/`（面板参数唯一来源）。
+  `npm start -- --workspace <目录>` 起服务；资料目录必须由你明确选择（主目录 / 桌面 / 下载根目录 / tmp 会被拒绝）。
+- **数据层**：`schema/0001_initial.sql`（25 表 / 174 列）+ `0002_section_titles.sql`（2 列 ALTER），
+  哈希在 `schema/freeze-contract.md`；改结构只能新增迁移。演示数据唯一来源是 `demo/build-demo-data.mjs`。
+- **DSH Desktop 接入**：`lib/client.js` 与 `dsh/index.js` 已按家族标准分栏写好（`businessSide:'left'`、0.65、
+  `customFrame:false`），但**尚未实机安装验证**；相关合同见 `docs/02-DSH-CONTRACT.md`、`docs/09-WORKBENCH-STATUS.md`。
 
 ## 产品范围（一期规划）
 
@@ -37,7 +43,9 @@
 要求 Node.js `>=22`。
 
 ```bash
-npm run check      # 语法 + 包结构校验
+npm start -- --workspace ~/Documents/EsopPalWorkspace   # 起开发版（默认 4173）
+npm run check      # 版本同步 + 语法 + 冻结合同 + 文案红线 + 列一致性 + 单测 + 包结构
+npm run test       # 只跑单测（数据层 parity / 服务端 / 视图 parity）
 npm run pack:check # npm 包内容检查，不发布
 ```
 
@@ -45,7 +53,8 @@ npm run pack:check # npm 包内容检查，不发布
 
 ## 版本
 
-当前开发版本 `0.1.0`：脚手架（xyb-workbench-starter v1.3.3）初始化 + 差异化 SPEC + HTML demo。版本变更随 CHANGELOG 记录。
+当前版本 `0.1.0`。唯一来源是仓库根 `VERSION`；改版本先改它，再跑 `npm run build:version`
+（`lib/version.js` 是生成物，不手改）。版本变更随 CHANGELOG 记录。
 
 ## 致谢
 
