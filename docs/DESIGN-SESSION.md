@@ -28,3 +28,5 @@ HTML原型关口：路径/版本/hash、实际预览证据、用户确认范围/
 - **D3（产品决定，待 G1 签认）**：第一决策点=病理类型（鳞/腺）+部位分段（含 Siewert）；治疗历程以「路径三选一」开局（手术/dCRT/系统）；专属一级模块=「吞咽与进食通路」；一图秀=体重+白蛋白双序列。
 - **D4（用户要求）**：品牌走长春花蓝+文字标识（EsopPal 小咽宝占位）。
 - 未决：双营养入口（吞咽通路 vs 营养支持）职责边界文案，demo 中验证。
+
+- **D9（用户确认后执行，2026-10-18）**：仓库纳管 —— `github.com/xyb-openharness-dsh-plugins/esophageal-workbench`（private、MIT、main 分支，SSH samqin123）；`package.json` repository 字段由 `xyb-community/*` 占位改为 org 实址，license 由 UNLICENSED 改为 MIT 与 LICENSE 文件对齐；README 参照 xyb-workbench 体例新写（致谢小x宝社区志愿者 sam）。git 推送 ≠ 市场投稿，将来若需 public 另行授权。
