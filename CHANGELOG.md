@@ -1,5 +1,15 @@
 # 变更记录
 
+## 2026-10-21 · 提示词升级 v1.1（补 init / 强约束 / 三阶段闸口 / 多通道临床库）
+
+- `prompts/ZERO-TO-DEV.md`：新增阶段 0（starter init + 标准文档体系 + `DEV-REQUIREMENTS` 强约束文档，
+  体例对齐 `gastric-workbench/docs/DEV-REQUIREMENTS-2026-10-21.md`）。
+- 三阶段闸口写实：3.1 调研/患者流程/schema/临床库/HTML demo → 第一次确认；3.2 开发版与原型逐字符一致；
+  3.3 按发布规范做 dsh-desktop 实测；之后才是 push、tag、经验回流（项目约束文档 + starter LESSONS/prompts）。
+- 临床试验改为多通道口径：unified-trial-mcp（`opencare-skillhub/unified-trial-search-mcp-service`，
+  ICTRP / CTV / ChiCTR / CDE 含 PI / 离线语料），强调「0 条结果必须带覆盖声明」「登记≠有效≠可入组」。
+- 样板基准统一写成 `<癌种英文>-workbench v0.1.0`。
+
 ## 2026-10-21 · 开发版 0.1.0（原型 → 数据层 → 开发版骨架走通）
 
 - 需求与约束固化为 `docs/DEV-REQUIREMENTS-2026-10-21.md`（H1–H25 开发红线 + E-A1–E-A12 食管癌专属 + Q1–Q8）。
