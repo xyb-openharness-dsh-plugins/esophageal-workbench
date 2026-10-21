@@ -62,7 +62,7 @@
 
 | # | 约束 | 错误来源 |
 | --- | --- | --- |
-| H15 | **装机目录必须是 `~/.dsh/profiles/desktop`**，不是 web；`platform="web"` 是运行环境 | 用户轮次 E-1 |
+| H15 | **装机目录必须是 DSH Desktop 实际加载的那个 Harness profile**（2026-10-21 更正：原写"固定 `~/.dsh/profiles/desktop`"是错的——那是 CLI 侧的 desktop profile，Desktop 不读）；`platform="web"` 是运行环境 | 用户轮次 E-1；2026-10-21 本机实测更正（Desktop 0.12.0：`~/Library/Application Support/dsh-desktop/harness/profiles/web`） |
 | H16 | 文案红线词表本身会命中红线 → 词表行加 `// wording-allow` 并写理由 | 肠癌 `check-wording` |
 | H17 | `schema/freeze-contract.md` 的 sha256 **必须实算写入**，不能留 `${sha}` 未展开 | 肠癌 `check-schema` |
 | H18 | `lib/version.js` 是生成物；**build 日期取最后一次提交**，所以流程必须是「提交 → build:version → check → 再提交 version.js → 打 tag」 | 胃癌发版时踩到 |
