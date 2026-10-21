@@ -11,4 +11,6 @@ output/
 *.sqlite-wal
 *.sqlite-shm
 *.db
+# 例外：临床研究资料包是本仓库的交付物（不是业务数据），按 DEV-REQUIREMENTS §一 随仓库版本化
+!research/**/*.sqlite
 .secrets/
