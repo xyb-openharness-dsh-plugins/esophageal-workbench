@@ -1,9 +1,16 @@
 # 2026 食管癌临床研究资料包说明
 
-资料包位置：`~/Downloads/unified_search_trials/research/esophageal-cancer/`（README + `trials-2026.jsonl` + `esophageal_cancer_trials_2026.sqlite` + `manifest.json`）。
+资料包位置：**仓库内 `research/esophageal-cancer/`**（README + `trials-2026.jsonl` + `esophageal_cancer_trials_2026.sqlite` + `manifest.json`），随仓库版本化；同一份也在 `~/Downloads/unified_search_trials/research/esophageal-cancer/`。
 SQLite 文件为 `esophageal_cancer_trials_2026.sqlite`，sha256 `4dd62ee2f061c71e2161397fcaec92b5fab19382c845c7ef4ba9cc3015436486`（写入 `manifest.json`，重跑采集会变）。
 
 采集脚本随本项目版本化：`scripts/fetch-esophageal-trials-2026.mjs`（`--dry-run` 只报命中数、打印被剔除样本与疑似非肿瘤样本，便于核对术语误杀与误收）。
+脚本默认写到 `~/Downloads/unified_search_trials/research/esophageal-cancer`；要让产物直接落进本仓库，显式给目录：
+
+```bash
+ESOPHAGEAL_RESEARCH_DIR=research/esophageal-cancer node scripts/fetch-esophageal-trials-2026.mjs
+```
+
+重跑会改 sqlite 与 manifest 的 sha256，属预期；提交前把新 hash 同步到本文件、`research/esophageal-cancer/README.md` 与 `manifest.json`。
 
 ## 设计/开发阶段可用内容
 

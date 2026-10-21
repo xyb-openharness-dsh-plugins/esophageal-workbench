@@ -1,5 +1,11 @@
 # 变更记录
 
+## 2026-10-21 · 临床资料包入库 + 开发版无头实测留痕
+
+- `research/esophageal-cancer/` 纳入版本管理：`manifest.json` + `trials-2026.jsonl` + `esophageal_cancer_trials_2026.sqlite`（200 条，sha256 `4dd62ee2…`）+ `README.md`；`.gitignore` 加 `!research/**/*.sqlite` 例外，业务库仍不入库。
+- `docs/CLINICAL-DATA-2026.md` 路径改为仓库内相对路径，并写清重跑方式（`ESOPHAGEAL_RESEARCH_DIR=research/esophageal-cancer`）与 hash 同步要求。
+- 新增 `docs/release/v0.1.0/`：5 张实测截图 + `LIVE-CHECK.md`（11 页 / 32 个二级页签穷举、面板 25–35–45%、三档字号无溢出、0 error / 0 4xx）。
+
 ## 2026-10-21 · 装机目标更正（V2 前的准备）
 
 - **更正**：装机目录不是 `~/.dsh/profiles/desktop`（CLI 侧，Desktop 不读）。DSH Desktop 0.12.0 实际加载的是 app 自己的 Harness `~/Library/Application Support/dsh-desktop/harness/profiles/web`。
