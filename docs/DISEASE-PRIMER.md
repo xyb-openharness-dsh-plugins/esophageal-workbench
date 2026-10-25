@@ -92,9 +92,9 @@
 只写已发生的事实，每条带日期或版本号。
 
 1. 截至 2026-10-25：ClinicalTrials.gov 上首次公示于 2026-01-01 之后的食管癌 / 食管胃结合部干预性研究共 200 条（疾病特异 190 条 + 篮式 10 条）。
-2. 同一批 200 条的登记状态：RECRUITING 103、NOT_YET_RECRUITING 82、COMPLETED 6、ACTIVE_NOT_RECRUITING 6、ENROLLING_BY_INVITATION 3。
-3. 同一批 200 条的分期分布：PHASE2 92、NA（未标注 / 不适用）31、PHASE1 27、PHASE3 22、PHASE1|PHASE2 16、PHASE4 4、EARLY_PHASE1 4、PHASE2|PHASE3 4。
-4. 同一批 200 条中 108 条含中国中心；主题关键词近似命中：免疫治疗 85、鳞癌 84、腺癌 / GEJ 80、手术相关 68、新辅助 / 围手术期 55、放疗 / 放化疗 45（同一研究可命中多个主题，计数为量级参考，不是精确分类）。
+2. 截至 2026-10-25，同一批 200 条的登记状态：RECRUITING 103、NOT_YET_RECRUITING 82、COMPLETED 6、ACTIVE_NOT_RECRUITING 6、ENROLLING_BY_INVITATION 3。
+3. 截至 2026-10-25，同一批 200 条的分期分布：PHASE2 92、NA（未标注 / 不适用）31、PHASE1 27、PHASE3 22、PHASE1|PHASE2 16、PHASE4 4、EARLY_PHASE1 4、PHASE2|PHASE3 4。
+4. 截至 2026-10-25，同一批 200 条中 108 条含中国中心；主题关键词近似命中：免疫治疗 85、鳞癌 84、腺癌 / GEJ 80、手术相关 68、新辅助 / 围手术期 55、放疗 / 放化疗 45（同一研究可命中多个主题，计数为量级参考，不是精确分类）。
 5. 采集边界：ChinaDrugTrials 与 ChiCTR 本轮未采集（2026 记录数未知），因此上述 200 条只代表 ClinicalTrials.gov 这一组查询与过滤口径，不代表所有注册库。
 
 **未写**：指南版本更替（CSCO 2026 / NCCN 2026 / ESMO 2026 状态未核验）、监管批件（本项目没有核实任何 NMPA 批件）、分类体系更新（WHO 版本未核实）、指南结构变化（没有原文）——四类整类不写，只保留自采登记这一类。
