@@ -1,6 +1,6 @@
 {
   "name": "@xyb-community/esophageal-workbench",
-  "version": "0.1.1",
+  "version": "0.1.2",
   "description": "本机优先的食管癌吞咽分级、进食通路、根治性放化疗路径与复诊准备工作台",
   "private": true,
   "type": "module",
