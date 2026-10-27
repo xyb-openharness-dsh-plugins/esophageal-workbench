@@ -31,7 +31,9 @@
   共 8 处一致；原型快照 `prototypes/v0.2` 按 D37 仍冻结在 v0.1.0。
 - **首次装入 DSH Desktop**：0.1.0 只发过 GitHub Release、从未实机安装。本次打进
   `~/Library/Application Support/dsh-desktop/harness/profiles/web`
-  （`pnpm --dir . add -w <tgz>`），`dsh.profile.bundles` 39 → **40**；`check-install.mjs` 已认到登记。
+  （`pnpm --dir . add -w <tgz>`），`dsh.profile.bundles` 加入 `@xyb-community/esophageal-workbench`
+  （39 → **41**：同一次安装窗口里另一路会话同时装入了 `fshd-workbench`，我的脚本只加了食管这一条，
+  安装前已备份 profile 清单并逐项比对，36 个依赖目录 0 缺失）；`check-install.mjs` 已认到登记。
   顺带修正 profile 里一条失效依赖路径：`@xyb-community/aml-workbench` 指向已不存在的 0.6.1，
   改为磁盘上已有的 0.6.2（同包新版本，否则 `pnpm add` 整体 ENOENT 失败）。
   **待办：需重启 DSH Desktop 才会加载新 bundle；重启后应在市场/工作台里看到小咽宝。**
