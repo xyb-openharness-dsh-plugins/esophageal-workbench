@@ -1,5 +1,41 @@
 # 变更记录
 
+## 2026-10-27 · v0.1.1：36 号疾病概要补齐（指南可点 + 看板状态卡）+ 首次装入 Desktop
+
+**为什么做**：`xyb-workbench-starter/prompts/PRIMER-BACKFILL.md` 要求把 36 号规范补齐到各癌种工作台。
+本项目 0.1.0 的疾病概要只有四段文字，指南表「原件」列是纯文字、点不开；看板也没有 §2.6 的病程状态卡。
+
+- **疾病概要模块升到 36 号 v2**：`primer.js` / `primer.css` 原样取自 starter `assets/patterns/`，含 `safeHref()`
+  （只放行 `https://`）与 `.dp-miss` 缺链红标（缺链接的行会渲染成红色提示，而不是静默通过）。
+  原型 `prototypes/v0.2/` 与开发版 `public/` 两处同步，保持逐字符一致。
+- **指南表每条来源都给可点链接**（36 号 §2.5）。本项目**一份原件都没有**，所以 5 行全部是
+  `original:false` + `secondaryUrl`，指向该机构的官方出版信息页，不拿别人的 PDF 冒充自己的原件：
+  CSCO 官方指南合订本页、NCCN 指南详情页（id=1433）、ESMO 胃与食管癌 CPG 页、AJCC 官方页（FACS）、
+  IARC《消化系统肿瘤》2019 出版页；趋势段的 ClinicalTrials.gov 换成同口径检索页。
+  六条链接逐条 `curl -L` 验过 HTTP 200 才写进数据。
+- **看板加 36 号 §2.6 病程状态卡**（四件：卡头 / 大字天数 / 现状行 / 出口按钮排）。天数一律由档案日期派生：
+  有手术记录 → 锚点=手术日；未手术 → 锚点=治疗路径「当前」行起始日；取不到就整卡「待初始化」，不编数字。
+  两档实测：沈志远 D+147（2026-06-02 当前方案首日）、顾晓兰 D+117（2026-07-02 手术日）。
+  原来那条琥珀色「下一次节点」提示条并入状态卡现状行，同一句话不再出现两次。
+- **`docs/SPEC.md` §3 冲突修正**：原文写「吞咽卡为首卡」，与 36 号「病程状态卡是看板首卡」直接矛盾。
+  定为「通用骨架首卡在上、业务首卡在下」，理由写进 SPEC（位置感先于业务重点），避免下一个人再改回去。
+- **顶栏「?」改为手写**：`primer.js` 的 `mount()` 是「已有 `[data-primer-open]` 就接管、没有才插」，
+  而 `app.js` 先渲染出状态卡里的同名按钮 —— 自动挂载接管的是那一颗，顶栏永远空着；且 P1 照样 PASS
+  （`querySelector` 拿到的是状态卡按钮）。开发版顶栏是 `.tb-actions`，另在 `shell.css` 里按 32×32 圆形适配。
+  教训写进 `docs/DISEASE-PRIMER.md` §7。
+- **排版对齐 P9**：`primer.css` 的列表由 `padding-left:18px` 改为 `padding-left:0 + li::before` 自定义符号，
+  使正文 / 列表 / 表格 / 来源行同左基线、右边界极差 ≤2px（1280 / 900 / 390 三档）。
+- **验证**：`npm run check` **21/21 全绿**（含视图 HTML 逐字符一致、style.css 规则一致、版本 8 处一致）；
+  `probe-disease-primer.mjs` 原型与开发版均 **10/10 PASS**（P1–P9 + E0）；`--self-test` **3 FAIL**（闸门会报红）。
+- **版本**：`VERSION` 0.1.0 → **0.1.1**，`lib/version.js` / `package.json` / `public/index.html` / `public/app.js`
+  共 8 处一致；原型快照 `prototypes/v0.2` 按 D37 仍冻结在 v0.1.0。
+- **首次装入 DSH Desktop**：0.1.0 只发过 GitHub Release、从未实机安装。本次打进
+  `~/Library/Application Support/dsh-desktop/harness/profiles/web`
+  （`pnpm --dir . add -w <tgz>`），`dsh.profile.bundles` 39 → **40**；`check-install.mjs` 已认到登记。
+  顺带修正 profile 里一条失效依赖路径：`@xyb-community/aml-workbench` 指向已不存在的 0.6.1，
+  改为磁盘上已有的 0.6.2（同包新版本，否则 `pnpm add` 整体 ENOENT 失败）。
+  **待办：需重启 DSH Desktop 才会加载新 bundle；重启后应在市场/工作台里看到小咽宝。**
+
 ## 2026-10-21 · 临床资料包入库 + 开发版无头实测留痕
 
 - `research/esophageal-cancer/` 纳入版本管理：`manifest.json` + `trials-2026.jsonl` + `esophageal_cancer_trials_2026.sqlite`（200 条，sha256 `4dd62ee2…`）+ `README.md`；`.gitignore` 加 `!research/**/*.sqlite` 例外，业务库仍不入库。

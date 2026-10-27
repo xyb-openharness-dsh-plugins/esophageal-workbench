@@ -107,7 +107,14 @@
 - [x] `prototypes/v0.2/primer.js`（starter 原样复制，逻辑未改）
 - [x] `prototypes/v0.2/primer-data.js`（四段数据）
 - [x] `index.html` 三处引用：`primer.css`、`primer-data.js`、`primer.js`
-- [x] 顶栏「?」由模块自动插入 `.top-actions`（未手写按钮）
+- [x] 顶栏「?」**手写**在 `.top-actions`（2026-10-27 改）：自动挂载会去接管看板状态卡里那颗同名按钮，顶栏就空着，理由见 §7
+- [x] `primer.js` / `primer.css` 已升到 starter 36 号 v2（含 `safeHref` + `dp-miss` 缺链红标）
+- [x] `primer-data.js` 每条来源补可点链接：原件取得 → `url`；未取得 → `secondaryUrl`；本地文件 → `nolink:true` + `note`（2026-10-27 逐条 curl 验过 200）
+- [x] 看板首卡是 36 号 §2.6 病程状态卡（卡头 / 大字天数 / 现状行 / 出口按钮排），日期由档案派生不手填，副按钮接疾病概要
+- [x] **开发版 `public/` 同步完成**（v0.1.1）：`primer.js` / `primer.css` / `primer-data.js` 与原型逐字符一致；
+      `index.html` 加 `primer.css` + 两个 script，顶栏 `.tb-actions` 手写 `?`，`shell.css` 按 32×32 圆形适配；
+      `app.js` 搬入同一份 `stageCard()`，`style.css` 补同一段 `.stage-card` 规则（放在开发版覆盖块之前，
+      让「原型提示条停用」仍是文件最后一块）。`npm run check` 21/21、开发版探针 10/10。
 - [x] README 的 `## 疾病概要` 四段正文（位置：首个 `##` 之前，即项目简介之后）
 - [x] `NODE_OPTIONS= node scripts/probe-disease-primer.mjs --port 8132 --url …/prototypes/v0.2/index.html` → 9/9 PASS
 - [x] `node /Users/qinxiaoqiang/Downloads/xyb-workbench-starter/scripts/check-conformance.mjs .` → primer/* 四条 ok
@@ -116,7 +123,7 @@
 
 | 编号 | 判据 | 结果 |
 |---|---|---|
-| P1 | 顶栏有可点「?」，aria-label 说明四段 | ✅ text="?" label="疾病概要：定义、医学资料与指南情况、治疗全景、发展趋势" |
+| P1 | 顶栏有可点「?」，aria-label 说明四段 | ✅ 2026-10-27 复验：顶栏手写按钮 text="?" label="疾病概要：食管癌是什么？定义、医学资料与指南情况、治疗全景、发展趋势"（此前 P1 曾被状态卡按钮「代跑」通过，见图与 §7 教训） |
 | P2 | 整页面板，四段顺序 定义 → 指南 → 治疗全景 → 趋势 | ✅ definition › evidence › landscape › trend |
 | P3 | 面板宽高 ≥ 视口 90% | ✅ 1249×829 / 视口 1280×860 |
 | P4 | 打开压一条 history，`history.back()` 收起 | ✅ history.length=3；返回后 open=false |
@@ -130,3 +137,7 @@
 - **一份指南全文都没有，就不要写版本号**：初稿想写「CSCO 2026 / NCCN 2026」，但 `docs/CLINICAL-DATA-2026.md` 白纸黑字写着这两个版本「未核验」。全部改成「版本未核实 · 页码待核」，并在 README 的引言里先交代这件事——填一个像样的年份比留空更容易误导。
 - **趋势段没有硬凑到五类**：手上只有 ClinicalTrials.gov 的 200 条自采登记，指南版本更替、监管批件、分类体系更新、指南结构变化四类都没有原件支撑，最终只写「在研登记规模与阶段分布」这一类，其余整类留空。
 - **分段与 Siewert 只留记录位**：初稿起过「按距门齿距离判断分段」的念头，这与 SPEC 的「分段由内镜与影像报告给出、本台不自行推算」冲突，也容易滑成判断；最后只写「医生给出、本台留记录位」。
+- **2026-10-27 · 顶栏「?」必须手写，不能等自动挂载**：primer.js 的 `mount()` 逻辑是「DOM 里已有 `[data-primer-open]` 就接管它，没有才插一颗进去」。而看板病程状态卡的出口按钮排里本来就有同名按钮，`app.js` 又在 `primer.js` 的 `DOMContentLoaded` 之前就把看板渲染完了——结果自动挂载接管的是**状态卡里那颗文字按钮**，顶栏永远等不到「?」。现象很隐蔽：P1 照样 PASS（因为 `querySelector` 拿到的是状态卡按钮，text/aria-label 都对），只有打开页面肉眼看顶栏才发现少了东西。
+- **修法**：在 `index.html` 的 `.top-actions` 里手写一颗 `<button class="dp-trigger" data-primer-open aria-haspopup="dialog" aria-controls="disease-primer" aria-expanded="false">?</button>`，让它成为 DOM 里第一个触发钮；`mount()` 会接管它并补齐 aria。状态卡那颗继续用文字，两处入口并存是 36 号 §2.6 允许的。
+- **判据要补一条眼看的**：只看 P1 会漏掉这个缺陷，交付前必须看一张首屏截图，确认顶栏右侧真的有「?」。
+- **2026-10-27 · 状态卡压过业务首卡，要同步改 SPEC**：`docs/SPEC.md` §3 原写「吞咽卡为首卡」，与 36 号 §2.6「病程状态卡是看板首卡」直接冲突。两卡回答的不是同一个问题（位置感 vs 业务重点），最后定「通用骨架首卡在上、业务首卡在下」，并在 SPEC 里写清理由，避免下一个人再改回去。原来那条琥珀色「下一次节点」提示条并入状态卡现状行，同一句话只出现一次。

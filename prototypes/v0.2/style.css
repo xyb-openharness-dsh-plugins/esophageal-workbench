@@ -484,3 +484,18 @@ dialog::backdrop{background:rgba(28,43,58,.36);backdrop-filter:blur(2px)}
 .mcard:focus-visible .mface{outline:3px solid var(--violet-deep);outline-offset:2px}
 .actions .hero-ai{display:inline-flex;align-items:center;gap:6px}
 .actions .hero-ai svg{width:15px;height:15px;flex:0 0 15px}
+
+/* ---------- 36 号 §2.6 病程状态卡（看板首卡） ---------- */
+.stage-card{display:grid;gap:10px;padding:18px 20px;margin:0 0 14px;border:1px solid var(--line-strong);border-left:4px solid var(--violet-deep);background:linear-gradient(180deg,#f8f9fd,#fff)}
+.stage-card .eyebrow{letter-spacing:.08em;text-transform:none}
+.stage-day{display:flex;align-items:baseline;gap:12px;flex-wrap:wrap}
+.stage-day b{font-size:30px;line-height:1.15;font-weight:650;letter-spacing:-.8px;color:var(--violet-deep)}
+.stage-day small{color:var(--muted);font-size:12px}
+.stage-now{display:grid;gap:6px;color:var(--ink-2);font-size:13.5px}
+.stage-now>span{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.stage-state{color:var(--ink-2)}
+.stage-actions{display:flex;gap:10px;flex-wrap:wrap;margin-top:2px}
+.stage-actions .primary{border-color:transparent}
+.stage-card.is-empty{border-left-color:var(--line-strong);background:#fbfcfd}
+.stage-card.is-empty .stage-day b{font-size:22px;color:var(--muted)}
+@media (max-width:720px){.stage-day b{font-size:25px}.stage-card{padding:15px 16px}}

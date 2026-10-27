@@ -28,6 +28,12 @@
       <div class="breadcrumb">小咽宝工作台 <span>/</span> <b id="breadcrumb">看板</b></div>
       <div class="top-actions">
         <button class="status" id="ready-store" data-action="open-store" aria-label="资料目录：已激活"><i></i><span>资料目录</span><b>已激活</b></button>
+        <!-- 36 号：疾病概要「?」入口。必须手写在这里而不是靠 primer.js 自动插：
+             app.js 先渲染出看板状态卡里的同名按钮，自动挂载会去接管那一颗，
+             顶栏就永远没有「?」。 -->
+        <button class="dp-trigger" data-primer-open aria-haspopup="dialog" aria-controls="disease-primer" aria-expanded="false"
+          aria-label="疾病概要：食管癌是什么？定义、医学资料与指南情况、治疗全景、发展趋势"
+          title="疾病概要：定义 · 指南 · 治疗全景 · 趋势">?</button>
         <button class="status" id="agent-toggle" data-action="agent" aria-expanded="false" aria-label="AI 对话：点击打开右侧原生会话面板"><i class="grey"></i><span>AI 对话</span><b id="agent-state">未进入激活</b></button>
         <button data-action="settings" aria-label="打开设置：工作区目录、文档解析、临床数据库">设置</button>
         <button id="font-toggle" aria-pressed="false" title="切换大字">大字 Aa</button>

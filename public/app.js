@@ -16,7 +16,7 @@
    上传与候选核对、data-countup 数字滚动、prefers-reduced-motion 降级，全部与原型一致。 */
 
 const APP_INFO = {
-  version: '0.1.0',
+  version: '0.1.1',
   build: '2026-10-21',
   channel: 'dev',
   channelLabel: '开发版 · 本机优先',
@@ -466,10 +466,77 @@ const SWALLOW_LEVELS = ['普食', '软食', '半流', '流食', '水呛', '完�
 /* 一刀切的职责边界提示（E-A9）：两个营养入口各写一句常驻，防止用户重复录入。 */
 const NUTRI_BOUNDARY = '这一页记「吃了多少」（份量、食物、症状）；「怎么吃进去」（吞咽档位、通路、扩张）在「吞咽与进食通路」页。两页数据不互相复制。';
 
+/* ---------------- 36 号 §2.6 病程状态卡（看板首卡） ----------------
+   四件结构：卡头（D+N · 距下一节点）／大字天数／现状行／出口按钮排。
+   天数一律由锚点日派生，不手填：有手术记录 → 手术日；未手术 → 当前方案首日。
+   两个锚点都从档案里已有的日期取，取不到就整卡「待初始化」，不编数字。
+   「下次」只取该档案 rhythm 里医生已排的那条，不由指南间隔推算（那是替医生排日程）。 */
+const cardToday = () => {
+  const d = new Date();
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+};
+const cardGap = (from, to = cardToday()) => Math.round((Date.parse(`${to}T00:00:00`) - Date.parse(`${from}T00:00:00`)) / 86400000);
+const cnDate = (iso) => { const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(iso || ''); return m ? `${m[1]} 年 ${+m[2]} 月 ${+m[3]} 日` : (iso || '日期待核'); };
+
+function esopAnchor(p) {
+  const s = (p.surgery && p.surgery.rows && p.surgery.rows[0] && p.surgery.rows[0][0]) || '';
+  if (/^\d{4}-\d{2}-\d{2}$/.test(s)) return { date: s, label: '手术日' };
+  const cur = ((p.pathway && p.pathway.rows) || []).find((r) => r[0] === '当前');
+  const m = cur && String(cur[2] || '').match(/(\d{4}-\d{2}-\d{2})/);
+  if (m) return { date: m[1], label: '当前方案首日' };
+  return null;
+}
+
+function stageCard(p) {
+  const anchor = esopAnchor(p);
+  const next = (p.rhythm || [])[0] || null;
+  const nextText = next ? `下次：${esc(next[3])}（${esc(next[0])}·${esc(next[1])}）` : '下次：档案里还没有医生排的节点';
+  const running = (p.lines || []).filter((l) => !l.done).slice(-1)[0] || null;
+  const stageState = running ? `${running.name}（进行中）` : '当前没有进行中的治疗记录';
+  const primerBtn = '<button class="soft" data-primer-open aria-label="疾病概要：食管癌是什么？定义、医学资料与指南情况、治疗全景、发展趋势">疾病概要：食管癌是什么？</button>';
+
+  if (!anchor) {
+    return `<section class="card stage-card is-empty" aria-label="病程状态卡：待初始化">
+      <span class="eyebrow">D+N 状态卡 · 待初始化</span>
+      <div class="stage-day"><b>待初始化</b><small>档案里没有手术日或治疗起始日，天数算不出来</small></div>
+      <div class="stage-now">
+        <span>${pill('阶段：' + p.stage, 'grey')}<span class="stage-state">${esc(stageState)}</span></span>
+        <span>三步初始化：① 选资料目录 ② 导入手术记录或出院小结 ③ 核对日期</span>
+        <span>${nextText}</span>
+      </div>
+      <div class="stage-actions">
+        <button class="primary" data-action="go-records">开始三步初始化</button>
+        ${primerBtn}
+      </div>
+    </section>`;
+  }
+
+  const gap = cardGap(anchor.date);
+  const nd = next ? (String(next[3]).match(/(\d{4}-\d{2}-\d{2})/) || [])[1] : null;
+  const toNext = nd ? cardGap(cardToday(), nd) : null;
+  const eyebrow = `D+${gap} 状态卡 · ${toNext == null ? '距下一节点：以医生排期为准' : `距下次节点约 ${toNext} 天`}`;
+
+  return `<section class="card stage-card" aria-label="病程状态卡：${esc(p.stage)}">
+    <span class="eyebrow">${eyebrow}</span>
+    <div class="stage-day">
+      <b>第 ${gap} 天</b>
+      <small>锚点 ${cnDate(anchor.date)}（${esc(anchor.label)} = Day 0）· 由档案日期算出，不手填</small>
+    </div>
+    <div class="stage-now">
+      <span>${pill(p.stage, 'violet')}<span class="stage-state">${esc(stageState)}</span></span>
+      <span>${nextText}</span>
+    </div>
+    <div class="stage-actions">
+      <button class="primary" data-action="go-timeline">看病情一图秀</button>
+      ${primerBtn}
+    </div>
+  </section>`;
+}
+
 function vDashboard() {
   const p = P(), m = M();
   const next = p.rhythm[0];
-  const alertNext = `<div class="alert-strip"><div><b>下一次节点：${esc(next[0])}</b><p>${esc(next[3])}</p></div><button class="soft" data-action="go-review">看复诊节奏</button></div>`;
+  const alertNext = stageCard(p);
   const tasks = [
     ['swallow', '记一次今天能吃什么', '六档自查：普食 / 软食 / 半流 / 流食 / 水呛 / 完全梗阻', 'go-swallow'],
     ['records', '报告看不懂？先理资料', '上传 → 解析 → 核对 → 入库，原件始终保留', 'go-records'],
