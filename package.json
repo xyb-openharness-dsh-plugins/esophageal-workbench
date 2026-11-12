@@ -1,6 +1,6 @@
 {
   "name": "@xyb-community/esophageal-workbench",
-  "version": "0.1.4",
+  "version": "0.1.5",
   "description": "本机优先的食管癌吞咽分级、进食通路、根治性放化疗路径与复诊准备工作台",
   "private": true,
   "type": "module",
@@ -34,7 +34,7 @@
     "check:package": "node scripts/check-workbench-package.mjs .",
     "check:columns": "node scripts/check-demo-columns.mjs",
     "test": "node --disable-warning=ExperimentalWarning --test test/*.test.mjs",
-    "check": "node scripts/build-version.mjs --check && node scripts/check-syntax.mjs && node scripts/check-schema.mjs && node scripts/check-wording.mjs && node scripts/check-demo-columns.mjs && node scripts/check-trial-snapshot.mjs . && node scripts/check-trial-matching.mjs --self-test && node scripts/check-trial-matching.mjs . && node scripts/check-patient-create.mjs && node --disable-warning=ExperimentalWarning --test test/*.test.mjs && node scripts/check-version.mjs && node scripts/check-workbench-package.mjs . && node scripts/check-agent-pane-contract.mjs .",
+    "check": "node scripts/build-version.mjs --check && node scripts/check-syntax.mjs && node scripts/check-schema.mjs && node scripts/check-wording.mjs && node scripts/check-demo-columns.mjs && node scripts/check-trial-snapshot.mjs . && node scripts/check-trial-matching.mjs --self-test && node scripts/check-trial-matching.mjs . && node scripts/check-patient-create.mjs && node --disable-warning=ExperimentalWarning --test test/*.test.mjs && node scripts/check-version.mjs && node scripts/check-workbench-package.mjs . && node scripts/check-agent-pane-contract.mjs . && node scripts/check-data-dir.mjs . && node scripts/check-trial-chain.mjs . && node scripts/check-patient-create.mjs .",
     "pack:check": "npm pack --dry-run",
     "check:install": "node scripts/check-install.mjs",
     "probe:primer": "node scripts/probe-disease-primer.mjs",

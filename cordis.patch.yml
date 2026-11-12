@@ -1,3 +1,5 @@
 - insert:
     - id: esophageal-main
       name: "@xyb-community/esophageal-workbench"
+      config:
+        root: !!js dshHomePath('esophageal-workbench')
