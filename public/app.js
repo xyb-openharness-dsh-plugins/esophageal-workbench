@@ -16,7 +16,7 @@
    上传与候选核对、data-countup 数字滚动、prefers-reduced-motion 降级，全部与原型一致。 */
 
 const APP_INFO = {
-  version: '0.1.3',
+  version: '0.1.4',
   build: '2026-10-21',
   channel: 'dev',
   channelLabel: '开发版 · 本机优先',
@@ -75,7 +75,7 @@ const SUBPAGES = {
   nutrition: ['进食量记录', '补充剂与医嘱'],
   mind: ['当下感受', '进食社交与形象', '家庭沟通'],
   review: ['复诊节奏', '随访与第二原发监测', '就诊准备'],
-  trials: ['2026 线索', '已收藏', '入组问题']
+  trials: ['匹配', '检索', '收藏']
 };
 const SUBTITLES = {
   dashboard: '吞咽、通路、体重与每一次复查放在一起，让下一次讨论有据可查。',
@@ -120,8 +120,63 @@ function loadBootstrap() {
       throw err;
     });
 }
+
+/* ---------------- 写入闭环（0.1.4）：apiPost + 双通道保存 ----------------
+   有本机 API（apiBase() 非空——独立启动 ''、宿主 '/api/esophageal' 都算有）时先走 POST
+   /api/profiles/{key}/{kind}，成功后重拉 bootstrap 并重渲染、toast「已保存到本机数据库」；
+   失败回退到调用方的内存分支并提示（禁止静默失败，禁止把演示态写成已保存）。 */
+async function apiPost(path, body) {
+  const r = await fetch(`${apiBase()}${path}`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(body || {}) });
+  let j = null;
+  try { j = await r.json(); } catch { /* 非 JSON 响应按失败处理 */ }
+  if (!r.ok || !j || j.ok === false) {
+    throw new Error((j && (j.message || j.detail)) || `HTTP ${r.status}`);
+  }
+  return j;
+}
+async function saveEntry(kind, data) {
+  if (apiBase() != null) {
+    try {
+      const res = await apiPost('/api/profiles/' + state.profile + '/' + kind, data);
+      if (res && res.ok) {
+        const b = await loadBootstrap();
+        buildData(b);
+        render();
+        toast('已保存到本机数据库');
+        return true;
+      }
+    } catch (err) {
+      toast('写库失败，先暂存在本页（刷新会丢）：' + (err && err.message ? err.message : '未知错误'));
+      return false;
+    }
+  }
+  return false;
+}
+/* 从 bootstrap 的 entries 里还原本档案的入组问题（question 条目），刷新后仍可见。 */
+function syncQuestions() {
+  state.questions = (BOOT_ENTRIES || []).filter((e) => e.profile_key === state.profile && e.kind === 'question')
+    .map((e) => { try { return (JSON.parse(e.data) || {}).q || ''; } catch { return ''; } }).filter(Boolean);
+}
+/* 开发版候选池：进「临床研究」页时从 /api/trials 拉真实快照（登记字段透传，不做判读）；
+   失败或演示态保留 demo 候选池（fictional 标记）。只在用户动作里触发，不阻塞首屏。 */
+let TRIALS_API_LOADED = false;
+function refreshTrialsFromApi() {
+  if (TRIALS_API_LOADED || apiBase() == null || typeof fetch !== 'function') return;
+  TRIALS_API_LOADED = true;
+  try {
+    fetch(`${apiBase()}/api/trials`).then((r) => (r && r.ok ? r.json() : null)).then((j) => {
+      if (!j || !j.available || !Array.isArray(j.rows)) return;
+      TRIALS = j.rows.map((r) => ({ id: r.id, title: r.title, phase: r.phases || '', status: r.status || '登记状态，未核实',
+        sponsor: r.sponsor || '', url: r.sourceUrl || '', studyType: r.studyType || '', countries: r.countries || '', fictional: false }));
+      if (state.view === 'trials') render();
+    }).catch(() => { /* 快照不可用时保留演示候选池 */ });
+  } catch { /* fetch 不可用（演示态）保持回退 */ }
+}
 const PROFILES = {}, METRICS = {}, EVENTS = {}, DASH_KEYS = {}, DOCS = {}, CANDS = {};
 let TRIALS = [];
+/* 写入闭环：SUBJECTS = bootstrap.subjects（含 is_demo，档案管理弹层用）；
+   BOOT_ENTRIES = bootstrap.entries（用户自记条目，questions 从 question 条目还原）。 */
+let SUBJECTS = [], BOOT_ENTRIES = [];
 function buildData(D) {
 for (const [k, p] of Object.entries(D.profiles)) {
   /* 字段逐条显式列出：生成器加字段时这里会同步补，不会静默丢字段。
@@ -161,6 +216,9 @@ for (const [k, p] of Object.entries(D.profiles)) {
     state.agentPhase = 'unavailable';
     if (D.agent.note) AGENT_HINT.unavailable = String(D.agent.note);
   }
+  SUBJECTS = D.subjects || [];
+  BOOT_ENTRIES = D.entries || [];
+  syncQuestions();
   if (D.version) APP_INFO.version = String(D.version);
   if (D.build) APP_INFO.build = String(D.build);
   APP_INFO.displayVersion = `v${APP_INFO.version}`;
@@ -188,6 +246,9 @@ let AGENT_PANE = { min: 0.25, max: 0.45, def: 0.35, step: 24, presets: { narrow:
 const AGENT_STORE_KEY = 'xyb-esophageal-agent-ratio';
 const state = { view: 'dashboard', profile: 'A', agentPhase: 'idle', agentSize: 'std', agentRatio: AGENT_PANE.def, sel: ['wt', 'alb', 'swallow'],
   range: 'all', zoom: 100, toggles: { treatment: true, keypoints: true }, pin: null, saved: [], sub: {},
+  /* 写入闭环 / 临床线（0.1.4）：档案管理表单草稿不入 state（读 DOM）；收藏不入库（savedTrials
+     只存本机会话，刷新清空，UI 明示）；trialPref 只影响匹配排序；trialSearch 是检索页条件。 */
+  trialPref: { type: 'all' }, trialSearch: { kw: '', type: '全部', region: '全部', status: '全部' }, savedTrials: {},
   query: '', parsing: false, parseError: false, loaded: {}, parsingName: '', lastUpload: null, uploads: 0 };
 /* 换档案后的默认选择必须与初始状态同构：两条数值线（体重 / 白蛋白）+ 吞咽分类节点。
    只挑数值会把吞咽丢掉，一图秀就退化成两条线，E-A7 的分类节点看不见。 */
@@ -550,7 +611,7 @@ function vDashboard() {
   const cards = (DASH_KEYS[state.profile] || []).filter(k => m[k]).map(k => mcard(k, m[k])).join('');
   return `<div class="page-enter">${pageHead()}
   <div class="hero"><div><span class="eyebrow">当前情况</span><h1>${esc(p.headline)}</h1><p>${esc(p.mindset)}</p>
-    <div class="actions"><button class="primary" data-action="go-timeline">看病情一图秀</button><button class="soft" data-action="go-swallow">吞咽与进食通路</button><button class="soft hero-ai" data-action="agent-open">${icon('chat')}AI 对话</button></div></div>
+    <div class="actions"><button class="primary" data-action="go-timeline">看病情一图秀</button><button class="soft" data-action="go-swallow">吞咽与进食通路</button></div></div>
     <div class="hero-mascot" aria-hidden="true"><span style="font-size:56px">🫧</span></div></div>
   ${alertNext}
   <div class="intent"><i>✓</i><span>工作台只做<b>记录与整理</b>；诊断、方案调整由医生决定。页面里全部资料为<b>演示数据</b>。</span></div>
@@ -633,22 +694,38 @@ function docsTable() {
 
 /* 选文件：原型不读真实文件内容，只取文件名 / 大小 / 修改日期做一条演示记录。
    真实版在这里算 sha256 去重（同 subject + sha256 重复导入不重置解析状态）。 */
-function ingestFiles(list) {
+async function ingestFiles(list) {
   const files = Array.from(list || []);
   if (!files.length) return;
-  for (const f of files) {
-    if (f.size > 40 * 1024 * 1024) { toast(`「${f.name}」超过 40 MB 上限，未导入`); continue; }
+  const keep = files.filter((f) => {
+    if (f.size > 40 * 1024 * 1024) { toast(`「${f.name}」超过 40 MB 上限，未导入`); return false; }
+    return true;
+  });
+  if (!keep.length) return;
+  /* 双通道：有本机 API 逐份写入 user_entries（kind=doc）；失败回退内存分支并提示 */
+  if (apiBase() != null) {
+    try {
+      for (const f of keep) {
+        await apiPost('/api/profiles/' + state.profile + '/doc', { name: f.name, size: f.size, date: todayISO(), type: '其他', note: '本机导入 · 未解析' });
+      }
+      const b = await loadBootstrap();
+      buildData(b); render();
+      toast('已保存到本机数据库');
+      return;
+    } catch (err) { toast('写库失败，先暂存在本页（刷新会丢）：' + (err && err.message ? err.message : '未知错误')); }
+  }
+  for (const f of keep) {
     DOCS[state.profile].unshift({
       id: `u${state.uploads + 1}-${Math.random().toString(36).slice(2, 6)}`,
       name: f.name, fileName: f.name, size: f.size,
       date: todayISO(), type: '其他', status: '待核对',
-      note: '刚导入 · 未解析'
+      note: '刚导入 · 未解析（演示态，刷新重置）'
     });
     state.uploads += 1;
     state.lastUpload = DOCS[state.profile][0].id;
   }
   render();
-  toast(`已导入 ${files.length} 份材料（演示）；原件不会被改动，解析结果先当候选`);
+  toast(`已导入 ${keep.length} 份材料（演示态，刷新重置）；原件不会被改动，解析结果先当候选`);
 }
 
 function vRecords() {
@@ -1056,19 +1133,121 @@ function vReview() {
   return `<div class="page-enter">${pageHead(true)}${bodies[i] || bodies[0]}</div>`;
 }
 
+/* ---------------- 临床研究三子页（35 号四段链路）：匹配 / 检索 / 收藏 ----------------
+   匹配纯函数在 trial-match.js（window.EsoTrialMatch），判据只读快照真实字段 title / study_type；
+   药物靶点不进分母；可对照项不足 2 条不给百分数。检索页按条件过滤排序，不掺分数（页面无 %）。
+   候选池口径卡头的「快照 X 条 · 相关 Y 条」按 research/esophageal-cancer 实测后写死
+   （2026-10-20 采集 200 条；登记题目按本函数同款正则命中 126 条）；开发版经 /api/trials
+   透传后以服务层 total 为准。 */
+const SNAPSHOT_META = { count: 200, date: '2026-10-20', relevant: 126 };
+const TRIAL_PREFS = [['all', '全部'], ['interventional', '干预类'], ['observational', '观察类']];
+const SAVED_STATES = [['tracking', '在跟'], ['toAsk', '准备问'], ['archived', '已归档']];
+const trialPool = () => TRIALS;
+const matcher = () => (typeof globalThis !== 'undefined' ? globalThis.EsoTrialMatch : null);
+const trialFacts = (t) => ({ title: t.title, studyType: t.studyType || '' });
+function matchTrials() {
+  const pref = state.trialPref || { type: 'all' };
+  const Mx = matcher();
+  const list = trialPool().map((t) => {
+    if (!Mx) return { t, items: [], sc: { pct: null, ok: 0, m: 0, reason: '匹配引擎未加载（trial-match.js 缺失）' } };
+    const items = Mx.items(trialFacts(t), pref);
+    return { t, items: Mx.sorted(items), sc: Mx.score(items) };
+  });
+  list.sort((a, b) => (b.sc.pct ?? -1) - (a.sc.pct ?? -1));
+  return list;
+}
+function poolHead() {
+  const pool = trialPool();
+  const fictionalCount = pool.filter((t) => t.fictional).length;
+  return `<div class="card"><div class="card-head"><h2>候选池口径（写在卡头，不是全库扫描）</h2></div>
+    ${row('<b>本机候选池</b>', `已载 ${pool.length} 条（其中 ${fictionalCount} 条为<b>演示示例</b>：fictional 标记，仅演示交互，登记号口径未与官方页核对）`)}
+    ${row('<b>真实快照</b>', `${SNAPSHOT_META.count} 条（${SNAPSHOT_META.date} 采集）· 登记题目与本台疾病相关 ${SNAPSHOT_META.relevant} 条`)}
+    ${row('<b>相关 0 不代表「没有研究」</b>', '检索词命中才进池、通道召回有限；你手里的登记号请到官方登记页核对。')}
+    <p class="small-note">登记状态一律「登记状态，未核实」；快照会过期，以官方登记页为准。</p></div>`;
+}
+function trialCard(m) {
+  const t = m.t, items = m.items, sc = m.sc;
+  const comparable = items.filter((x) => x.state !== '?').length;
+  const pending = items.filter((x) => x.state === '?').length;
+  const savedOn = (state.savedTrials || {})[t.id];
+  const scoreBox = sc.pct == null
+    ? `<div style="border:1px dashed #b8c4d2;border-radius:10px;padding:8px 12px;text-align:center;align-self:center"><b>不足 2 项可对照</b><div class="small-note" style="margin:2px 0 0">不给符合度</div></div>`
+    : `<div style="border:1px solid #d8e0ea;border-radius:10px;padding:8px 12px;text-align:center;align-self:center"><b style="font-size:20px">${sc.pct}%</b><div class="small-note" style="margin:2px 0 0">登记字段符合度</div></div>`;
+  return `<div class="card" style="margin-bottom:10px"><div class="card-head"><h2 style="font-size:14px">${esc(t.title)}</h2>${t.fictional ? pill('演示示例', 'grey') : pill('快照条目', 'violet')}</div>
+    <p class="small-note" style="margin:-2px 0 8px">${esc(t.id || '（演示条目）')} · ${esc(t.studyType || '类型未存')} · ${esc(t.status || '登记状态，未核实')}</p>
+    <div style="display:flex;gap:12px;align-items:stretch;flex-wrap:wrap">
+      ${scoreBox}
+      <div style="align-self:center"><b>${sc.pct == null ? '—' : sc.ok + ' / ' + comparable}</b> 项对得上 · <b>${pending}</b> 项待确认${sc.reason ? `<div class="small-note">${esc(sc.reason)}</div>` : ''}</div>
+    </div>
+    <details ${items.length ? 'open' : ''}><summary>逐条证据链（✕ / ? 排前）</summary>
+      ${items.map((x) => `<p class="small-note" style="margin:6px 0"><b>${x.state}</b> ${esc(x.label)}${x.hard ? '（硬性）' : ''}<br>记录里是：${esc(x.got)}<br>条件要求：${esc(x.req)}</p>`).join('') || '<p class="small-note">匹配引擎未加载，暂无可对照项（需人工核对，以官方登记页为准）。</p>'}
+    </details>
+    ${t.fictional
+      ? '<p class="small-note">演示示例条目：只用来演示交互形态，不作为检索结果。</p>'
+      : (t.url ? `<div class="actions"><a class="source-link" href="${esc(t.url)}" target="_blank" rel="noopener">官方登记页 ↗</a></div>` : '')}
+    <div class="actions"><button class="soft" data-action="save-trial" data-id="${esc(t.id)}">${savedOn ? '已收藏 · 点此取消' : '收藏为线索'}</button>${t.url && !t.fictional ? `<a class="source-link" href="${esc(t.url)}" target="_blank" rel="noopener">登记页</a>` : ''}</div>
+    <p class="small-note"><b>这不是入组资格</b>，也不代表效果；入组条件以官方登记页与研究团队评估为准。</p></div>`;
+}
+function vTrialMatch() {
+  const p = P();
+  const matches = matchTrials();
+  return `<div class="notice"><b>四段链路</b>：① 建档（下面这张字段卡）→ ② 检索（「检索」页）→ ③ 匹配（本页）→ ④ 收藏（「收藏」页）。只有<b>已入库</b>的字段参与匹配；私密与待核对候选不参与。</div>
+    <div class="card"><div class="card-head"><h2>建档字段（已入库，参与匹配）</h2><span class="source-link">不自动判断你是否符合任何试验条件</span></div>
+      ${row('<b>诊断方向</b>', '食管癌（鳞癌 / 腺癌 / 食管胃交界），以医生书面结论为准')}
+      ${row('<b>病理类型与分段</b>', `${esc(p.path[0] || '未录入')} · ${esc(p.path[1] || '未录入')}（照病理 / 内镜报告原文）`)}
+      ${row('<b>分期</b>', esc(p.stage || '未录入'))}
+      ${row('<b>所在城市 / 年龄</b>', '未登记——匹配里这类项会标「待确认」，不会瞎猜')}
+      <p class="small-note">这页给检索与匹配提供事实底座；新建自己的档案在左上角「档案管理」。</p></div>
+    ${poolHead()}
+    <div class="card"><div class="card-head"><h2>偏好（只影响排序与对照，不是入排条件）</h2></div>
+      <div class="chips" style="margin:0">${TRIAL_PREFS.map(([k, l]) => `<button class="chip" aria-pressed="${(state.trialPref || {}).type === k}" data-action="tr-pref" data-k="${k}">${l}</button>`).join('')}</div></div>
+    <div class="section-title"><h2>匹配候选（${matches.length}）</h2><span class="source-link">「登记字段符合度」＝字段都对得上 / 部分对得上的计数，<b>不是入组资格</b></span></div>
+    ${matches.map(trialCard).join('') || '<div class="empty"><h3>候选池为空</h3><p>快照未就绪，或候选被全部清空。</p></div>'}`;
+}
+function vTrialSearch() {
+  const st = state.trialSearch || { kw: '', type: '全部', region: '全部', status: '全部' };
+  const kw = String(st.kw || '').trim().toLowerCase();
+  const rows = trialPool().filter((t) => {
+    if (kw && !`${t.title} ${t.id || ''}`.toLowerCase().includes(kw)) return false;
+    const typeStr = `${t.studyType || ''} ${t.phase || ''}`;
+    const typeRe = st.type === '干预' ? /干预|intervention/i : st.type === '观察' ? /观察|observ/i : null;
+    if (typeRe && !typeRe.test(typeStr)) return false;
+    const regionStr = `${t.countries || ''} ${t.sponsor || ''}`;
+    if (st.region === '中国' && !/China|中国/i.test(regionStr)) return false;
+    if (st.region === '其他国家或地区' && /China|中国/i.test(regionStr)) return false;
+    const statusStr = String(t.status || '');
+    if (st.status === '招募中' && !(/招募中/.test(statusStr) || (/RECRUITING/.test(statusStr) && !/NOT_YET/.test(statusStr)))) return false;
+    if (st.status === '尚未招募' && !(/尚未/.test(statusStr) || /NOT_YET/.test(statusStr))) return false;
+    return true;
+  });
+  return `<div class="notice"><b>四段链路 ② 检索</b>：我要找某个药 / 编号 / 方向——按你选的条件排，<b>不掺分数</b>。演示示例条目标「演示示例」；真实快照经服务层透传。</div>
+    <div class="card"><div class="card-head"><h2>检索条件</h2><span class="source-link">检索不产生匹配分数，只按条件过滤</span></div>
+      <label style="display:block;margin-top:8px"><span class="form-label">关键词（药名 / 编号 / 方向）</span><input id="trial-kw" style="width:100%" value="${esc(st.kw)}" placeholder="如：免疫、nivolumab、NCT 编号"></label>
+      <div style="display:flex;gap:10px;flex-wrap:wrap;margin-top:8px">
+        <label style="flex:1 1 140px"><span class="form-label">研究类型</span><select id="trial-type" style="width:100%">${['全部', '干预', '观察'].map((k) => `<option${st.type === k ? ' selected' : ''}>${k}</option>`).join('')}</select></label>
+        <label style="flex:1 1 140px"><span class="form-label">地区</span><select id="trial-region" style="width:100%">${['全部', '中国', '其他国家或地区'].map((k) => `<option${st.region === k ? ' selected' : ''}>${k}</option>`).join('')}</select></label>
+        <label style="flex:1 1 140px"><span class="form-label">登记状态</span><select id="trial-status" style="width:100%">${['全部', '招募中', '尚未招募'].map((k) => `<option${st.status === k ? ' selected' : ''}>${k}</option>`).join('')}</select></label>
+      </div>
+      <div class="actions"><button class="primary" data-action="tr-search-run">检索</button><span class="small-note">快照没有状态时间线，登记状态一律未核实；以官方登记页为准。</span></div></div>
+    ${rows.length ? `<div class="table-wrap"><table class="cycle-table"><thead><tr><th>登记号</th><th>研究</th><th>类型</th><th>状态</th><th>操作</th></tr></thead><tbody>
+      ${rows.map((t) => `<tr><td><b>${esc(t.id || '—')}</b>${t.fictional ? `<div class="small-note" style="margin:0">${pill('演示示例', 'grey')}</div>` : ''}</td><td>${esc(t.title)}</td><td>${esc(t.studyType || t.phase || '未存')}</td><td>${esc(t.status || '登记状态，未核实')}</td><td><button class="source-link" data-action="save-trial" data-id="${esc(t.id)}">${(state.savedTrials || {})[t.id] ? '已收藏' : '收藏'}</button></td></tr>`).join('')}
+      </tbody></table></div><p class="scroll-hint small-note">左右滑动查看</p>`
+      : `<div class="empty"><h3>没有命中候选池里的条目</h3><p>换个词，或放宽条件再试。</p><div class="actions"><button class="soft" data-action="tr-search-reset">清空条件重试</button></div></div>`}`;
+}
+function vTrialSaved() {
+  const keys = Object.keys(state.savedTrials || {});
+  return `<div class="notice"><b>四段链路 ④ 收藏</b>：只存本机会话 {试验, 收藏日期, 状态}；<b>收藏暂不写库，刷新会清空</b>（如实标注，不假装已保存）。</div>
+    ${keys.length ? `<div class="table-wrap"><table class="cycle-table"><thead><tr><th>研究</th><th>收藏日期</th><th>状态</th><th>操作</th></tr></thead><tbody>
+      ${keys.map((k) => { const it = state.savedTrials[k]; const t = TRIALS.find((x) => x.id === k) || {};
+        return `<tr><td><b>${esc(it.title || t.title || k)}</b></td><td>${esc(it.savedOn)}</td><td>${esc(it.stateLabel)}</td>
+          <td>${SAVED_STATES.map(([sk, sl]) => `<button class="soft" data-action="tr-state" data-k="${esc(k)}" data-st="${sk}"${it.state === sk ? ' disabled' : ''}>${sl}</button>`).join(' ')}</td></tr>`; }).join('')}
+      </tbody></table></div>`
+      : `<div class="empty"><h3>还没有收藏</h3><p>在「匹配」或「检索」页点「收藏」，会留在这里，方便复诊前一起看。</p></div>`}
+    <p class="small-note">快照没有登记状态变化时间线——<b>没有就是没有</b>，这里不画假进度条。登记摘录 ≠ 推荐；是否入组由研究团队评估与你自己决定。</p>`;
+}
 function vTrials() {
   const i = state.sub.trials || 0;
-  const list = TRIALS.map(t => `<div class="card" style="margin-bottom:10px"><div class="card-head"><h2>${esc(t.id)}</h2>${pill(t.status, /招募|进行/.test(t.status) ? 'green' : 'grey')}</div>
-    ${row(`<b>${esc(t.title)}</b>`, `${esc(t.phase)} · ${esc(t.sponsor)}`, `<a class="source-link" href="${esc(t.url)}" target="_blank" rel="noopener">登记页</a>`)}</div>`).join('');
-  const saved = state.saved.length ? state.saved.map(id => { const t = TRIALS.find(x => x.id === id); return t ? `<div class="card" style="margin-bottom:10px">${row(`<b>${esc(t.id)}</b>`, esc(t.title), `<a class="source-link" href="${esc(t.url)}" target="_blank" rel="noopener">登记页</a>`)}</div>` : ''; }).join('') : `<div class="empty"><h3>还没有收藏</h3><p>在看线索时点"收藏"，会留在这里，方便复诊前一起看。</p></div>`;
-  const qs = ['我的病理类型（鳞 / 腺）和分段，是否影响这条试验的入组条件？', '这条试验要求既往治疗到什么程度？我现在符合吗？', '如果参加，随访地点和频率对我的生活影响有多大？', '不参加的话，标准治疗是什么？两者我该怎么权衡？'];
-  const bodies = [
-    `<div class="notice">线索不是推荐：下面 ${TRIALS.length} 条来自 2026 年首次公示的真实登记摘录，<b>状态为登记状态，未核实、也不等于入组资格</b>。</div>${list}`,
-    saved,
-    `<div class="card"><div class="card-head"><h2>入组前该问的问题</h2><span class="source-link">按顺序问，不跳步</span></div>
-      ${qs.map(q => row(`<b>${esc(q)}</b>`, ''))}
-      <p class="small-note">工作台不排序、不预测、不替你判断哪条更好；是否入组由研究团队评估与你自己决定。</p></div>`
-  ];
+  const bodies = [vTrialMatch(), vTrialSearch(), vTrialSaved()];
   return `<div class="page-enter">${pageHead(true)}${bodies[i] || bodies[0]}</div>`;
 }
 
@@ -1259,11 +1438,23 @@ function openDialog(eyebrow, title, body, foot = '') {
 }
 const closeDialog = () => $('#dialog').close();
 
+/* 档案管理（写入闭环 0.1.4）：demo 与自建档案同列表（演示 / 自建 小标）+ 新建表单。
+   有本机 API 时 POST /api/profiles 真建档（成功后自动切换并清空草稿 / 会话态）；
+   演示态只提示「演示态，刷新重置」，不假装已保存。 */
 function dlgProfiles() {
-  openDialog('小咽宝', '切换演示档案', Object.entries(PROFILES).map(([k, p]) => `
-    <button class="profile-row ${state.profile === k ? 'on' : ''}" data-pick-profile="${k}">
-      <div><b>${esc(p.name)}的资料</b><p>${esc(p.meta)} · ${esc(p.headline)}</p></div><span class="profile-caret">${state.profile === k ? '当前' : '切换'}</span></button>`).join(''),
-    '<button data-action="close">取消</button>');
+  const list = (SUBJECTS && SUBJECTS.length
+    ? SUBJECTS.map((s) => ({ key: s.profile_key, name: s.name, meta: s.meta, demo: !!s.is_demo }))
+    : Object.keys(PROFILES).map((k) => ({ key: k, name: PROFILES[k].name, meta: PROFILES[k].meta, demo: true })));
+  openDialog('小咽宝', '档案管理', `
+    ${list.map((s) => `
+    <button class="profile-row ${state.profile === s.key ? 'on' : ''}" data-pick-profile="${esc(s.key)}">
+      <div><b>${esc(s.name)}的资料</b><p>${esc(s.meta || '')}</p></div><span class="profile-caret">${s.demo ? '演示' : '自建'} · ${state.profile === s.key ? '当前' : '切换'}</span></button>`).join('')}
+    <div class="section-title" style="margin-top:14px"><h2>新建档案</h2><span class="source-link">写入本机数据库 · 与演示档案分开（is_demo=0）</span></div>
+    <label style="display:block;margin-top:8px"><span class="form-label">名称</span><input id="np-name" style="width:100%" maxlength="24" placeholder="如：家人或自己的称呼"></label>
+    <label style="display:block;margin-top:8px"><span class="form-label">标签</span><input id="np-tag" style="width:100%" maxlength="40" placeholder="如：胸中段鳞癌 · 放化疗中"></label>
+    <label style="display:block;margin-top:8px"><span class="form-label">确诊经过</span><textarea id="np-fact" style="width:100%;min-height:64px" maxlength="500" placeholder="什么时候、怎么确诊的；照出院小结或病理报告原文抄，空着可跳过"></textarea></label>
+    <p class="small-note">有本机数据库时才真正建档；演示态下不会假装保存。</p>`,
+    '<button class="soft" data-action="close">取消</button><button class="primary" data-action="profile-create">新建档案</button>');
 }
 function dlgSettings() {
   openDialog('小咽宝', '设置', `<div class="cfg-tabs" role="tablist">
@@ -1338,9 +1529,9 @@ function render() {
 /* ---------------- events ---------------- */
 document.addEventListener('click', (e) => {
   const nav = e.target.closest('[data-nav]');
-  if (nav) { state.view = nav.dataset.nav; location.hash = state.view; render(); $('#main').focus({ preventScroll: true }); window.scrollTo(0, 0); return; }
+  if (nav) { state.view = nav.dataset.nav; location.hash = state.view; if (state.view === 'trials') refreshTrialsFromApi(); render(); $('#main').focus({ preventScroll: true }); window.scrollTo(0, 0); return; }
   const sub = e.target.closest('[data-sub]');
-  if (sub) { state.sub[state.view] = +sub.dataset.sub; render(); return; }
+  if (sub) { state.sub[state.view] = +sub.dataset.sub; if (state.view === 'trials') refreshTrialsFromApi(); render(); return; }
   const pick = e.target.closest('[data-pick]');
   if (pick) {
     const k = pick.dataset.pick;
@@ -1354,13 +1545,34 @@ document.addEventListener('click', (e) => {
     render(); return;
   }
   const pp = e.target.closest('[data-pick-profile]');
-  if (pp) { state.profile = pp.dataset.pickProfile; state.sel = defaultSel(pp.dataset.pickProfile); state.pin = null; closeDialog(); render(); toast(`已切换到 ${P().name}的资料（演示）`); return; }
+  if (pp) { state.profile = pp.dataset.pickProfile; state.sel = defaultSel(pp.dataset.pickProfile); state.pin = null; syncQuestions(); closeDialog(); render(); toast(`已切换到 ${P().name}的资料`); return; }
   const card = e.target.closest('.mcard[data-mcard]');
   if (card && !card.dataset.static) { flipCard(card.dataset.mcard); return; }
   const act = e.target.closest('[data-action]')?.dataset.action;
   if (!act) return;
   const map = {
     profiles: dlgProfiles, settings: dlgSettings, about: dlgAbout, help: dlgHelp,
+    'profile-create': async () => {
+      const name = $('#np-name') ? $('#np-name').value.trim() : '';
+      if (!name) { toast('先填一个档案名称'); return; }
+      const payload = { name, tag: $('#np-tag') ? $('#np-tag').value.trim() : '', facts: { '确诊经过': $('#np-fact') ? $('#np-fact').value.trim() : '' } };
+      if (apiBase() != null) {
+        try {
+          const res = await apiPost('/api/profiles', payload);
+          if (res && res.profileKey) {
+            const b = await loadBootstrap();
+            buildData(b);
+            state.profile = res.profileKey;
+            state.sel = defaultSel(res.profileKey);
+            state.pin = null; state.saved = []; syncQuestions();
+            closeDialog(); render();
+            toast('已保存到本机数据库');
+            return;
+          }
+        } catch (err) { toast('建档失败：' + (err && err.message ? err.message : '未知错误')); return; }
+      }
+      toast('演示态，刷新重置');
+    },
     close: closeDialog, 'open-store': () => toast('资料目录已激活（演示）'),
     'go-review': () => { state.view = 'review'; location.hash = 'review'; render(); },
     'go-labs': () => { state.view = 'labs'; location.hash = 'labs'; render(); },
@@ -1377,14 +1589,16 @@ document.addEventListener('click', (e) => {
       openDialog('小咽宝', '原文出处', `<p style="font-size:12.5px">${esc(line)}</p><p class="small-note">原件存放在你选的资料目录 imports/ 下；工作区不改动原文，也不替你解释它。</p>`, '<button class="primary" data-action="close">关闭</button>');
     },
     'pick-file': () => { const inp = $('#file-picker'); if (inp && typeof inp.click === 'function') inp.click(); else toast('当前浏览器不支持选择本机文件'); },
-    'export-save': () => {
+    'export-save': async () => {
       const ta = $('#export-edit');
       const txt = ta ? ta.value.trim() : '';
       if (!txt) { toast('导出内容是空的；先填一点内容再保存。'); return; }
+      const ok = await saveEntry('doc', { name: `复诊准备 · ${P().name} · ${todayISO()}`, value: txt, type: '其他', date: todayISO(), note: '由导出创建，可在草稿里核对' });
+      if (ok) { closeDialog(); return; }
       const docs = DOCS[state.profile];
       docs.unshift({ id: 'ex' + Date.now().toString(36), name: `复诊准备 · ${P().name} · ${todayISO()}`, fileName: `复诊准备-${todayISO()}.md`, size: new Blob([txt]).size, date: todayISO(), type: '其他', status: '待核对', note: '生成文件 · 由导出创建，可在草稿里核对' });
-      closeDialog();
-      toast('已保存到资料目录 exports/（演示）；在「病情整理 · 资料库」可见');
+      closeDialog(); render();
+      toast('已保存（演示态，刷新重置）；在「病情整理 · 资料库」可见');
     },
     'load-report': () => {
       if (state.parsing) return;
@@ -1414,17 +1628,23 @@ document.addEventListener('click', (e) => {
         <p class="small-note">来源：${esc(c.source)}。暂时不确定就保留待核对状态，不会丢。</p>`,
         `<button class="soft" data-action="close">现在先不核对</button><button class="primary" data-action="cand-save" data-id="${esc(c.id)}">接受这条记录</button>`);
     },
-    'cand-save': (el) => {
+    'cand-save': async (el) => {
       const c = CANDS[state.profile].find((x) => x.id === el.dataset.id);
       const v = $('#cand-input') ? $('#cand-input').value.trim() : '';
-      if (c && v) { c.value = v; c.status = 'accepted'; }
-      closeDialog(); render(); toast('已接受：写入演示数据库（record + 事实表），候选留版本不覆盖');
+      closeDialog();
+      if (!c || !v) return;
+      const ok = await saveEntry('doc', { name: c.name, value: v, source: c.source, note: '候选核对 · 已接受（核对 ≠ 医学审核）' });
+      if (ok) return;
+      c.value = v; c.status = 'accepted';
+      render(); toast('已接受：演示态暂存（刷新重置）；候选留版本不覆盖');
     },
-    'add-review-question': () => {
+    'add-review-question': async () => {
       const q = state.profile === 'A' ? '请帮我核实：病理报告的脉管 / 神经侵犯结论，以及 CLDN18.2 有没有必要补做。' : '请帮我核实：MDT-2 影像评估的腹膜病灶范围与结论原文，以及 CLDN18.2 检测结果。';
+      const ok = await saveEntry('question', { q, source: '复诊准备 · 想问清单' });
+      if (ok) return;
       state.questions = state.questions || [];
       if (!state.questions.includes(q)) state.questions.push(q);
-      render(); toast('已加入复诊准备的问题清单');
+      render(); toast('已加入问题清单（演示态，刷新重置）');
     },
     'add-swallow': () => { state.view = 'swallow'; state.sub.swallow = 0; location.hash = 'swallow'; render(); toast('六档自查只描述"能吃什么"，不是功能分级'); },
     'add-meal': () => toast('原型内不落库；真实版在这里记一笔进食（餐次 / 份量 / 症状）'),
@@ -1433,8 +1653,36 @@ document.addEventListener('click', (e) => {
     'export-nutrition': () => toast('就诊展示：最近 10 条进食记录 + 在用补充剂（演示）'),
     'export-review': dlgExport,
     'toggle-ask': (el) => { el.textContent = el.textContent.includes('✓') ? '标记已问' : '已问过 ✓'; },
-    'save-trial': (el) => { const id = el.closest('[data-action]').dataset.id ?? el.dataset.id; if (state.saved.includes(id)) { state.saved = state.saved.filter(x => x !== id); } else state.saved.push(id); render(); },
-    'ask-trial': (el) => { const id = el.closest('[data-action]').dataset.id ?? el.dataset.id; const t = TRIALS.find(x => x.id === id); state.questions = state.questions || []; const q = `${t.id}：入组条件是否包含我的分期与既往治疗？`; if (!state.questions.includes(q)) state.questions.push(q); render(); toast('已加入入组问题清单'); },
+    /* 收藏类不落库（0.1.4 明示）：savedTrials 只存本机会话，刷新清空；toast 说清楚。 */
+    'save-trial': (el) => {
+      const id = el.closest('[data-action]').dataset.id ?? el.dataset.id;
+      const t = TRIALS.find((x) => x.id === id) || {};
+      if (state.savedTrials[id]) { delete state.savedTrials[id]; toast('已取消收藏（只存本页会话，不入库）'); }
+      else { state.savedTrials[id] = { title: t.title || id, savedOn: todayISO(), state: 'tracking', stateLabel: '在跟' }; toast('已收藏（暂存本页会话，刷新会清空；不入库）'); }
+      render();
+    },
+    'tr-pref': (el) => { state.trialPref = { type: el.dataset.k }; render(); },
+    'tr-state': (el) => { const it = state.savedTrials[el.dataset.k]; if (it) { it.state = el.dataset.st; it.stateLabel = (SAVED_STATES.find(([sk]) => sk === el.dataset.st) || [,''])[1]; } render(); },
+    'tr-search-run': () => {
+      state.trialSearch = {
+        kw: $('#trial-kw') ? $('#trial-kw').value : (state.trialSearch || {}).kw || '',
+        type: $('#trial-type') ? $('#trial-type').value : '全部',
+        region: $('#trial-region') ? $('#trial-region').value : '全部',
+        status: $('#trial-status') ? $('#trial-status').value : '全部',
+      };
+      refreshTrialsFromApi();
+      render();
+    },
+    'tr-search-reset': () => { state.trialSearch = { kw: '', type: '全部', region: '全部', status: '全部' }; render(); },
+    'ask-trial': async (el) => {
+      const id = el.closest('[data-action]').dataset.id ?? el.dataset.id;
+      const q = `${id}：入组条件是否包含我的分期与既往治疗？`;
+      const ok = await saveEntry('question', { q, source: '临床研究 · 入组问题' });
+      if (ok) return;
+      state.questions = state.questions || [];
+      if (!state.questions.includes(q)) state.questions.push(q);
+      render(); toast('已加入入组问题清单（演示态，刷新重置）');
+    },
     range: (el) => { state.range = el.dataset.range; render(); },
     toggle: (el) => { state.toggles[el.dataset.key] = !state.toggles[el.dataset.key]; render(); },
     pin: (el) => { state.pin = { code: el.dataset.code, date: el.dataset.date }; render(); },

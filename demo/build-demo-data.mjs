@@ -671,7 +671,10 @@ const TRIAL_ROWS = [
   ['NCT07671625', '可手术食管胃结合部癌：预康复 + 营养干预 + 心理支持的围手术期综合项目', 'NA（未分期）', '招募中', 'Masaryk Memorial Cancer Institute'],
   ['NCT07355374', '微创 Ivor Lewis 术后：球囊扩张对胃代食管排空延迟的影响', 'NA（未分期）', '招募中', 'University Hospital, Basel'],
   ['NCT07426835', '机器人食管切除：关闭食管裂孔对照标准做法（食管旁疝发生率）', 'NA（未分期）', '招募中', 'Royal College of Surgeons, Ireland'],
-].map(([id, title, phase, status, sponsor]) => ({ id, title, phase, status, sponsor, url: 'https://clinicaltrials.gov/study/' + id }));
+]  /* fictional:true —— 演示库的 10 条全部是虚构示例（标题取自 2026 年真实登记方向的中文摘要，
+     但不含可用登记号口径，UI 标注「演示示例」）；真实快照 200 条走 research/esophageal-cancer/
+     与服务层 /api/trials 透传，两者不混标（§1.2.9）。 */
+  .map(([id, title, phase, status, sponsor]) => ({ id, title, phase, status, sponsor, url: 'https://clinicaltrials.gov/study/' + id, fictional: true }));
 
 /* ---------- 组装 ---------- */
 
@@ -749,7 +752,9 @@ CREATE TABLE subjects (
   pathway_title TEXT, surgery_title TEXT, swallow_title TEXT, access_title TEXT,
   nutrition_title TEXT, monitor_title TEXT, endoscopy_title TEXT,
   /* 这两列由 schema/0002_section_titles.sql 追加（ALTER 只能加在末尾，镜像也必须写在最后） */
-  dilation_title TEXT, access_events_title TEXT
+  dilation_title TEXT, access_events_title TEXT,
+  /* 这两列由 schema/0003_write_loop.sql 追加；演示档案 is_demo=1（用户自建写 0） */
+  is_demo INTEGER NOT NULL DEFAULT 1, created_on TEXT
 );
 CREATE TABLE metrics (
   profile_key TEXT, key TEXT, name TEXT, unit TEXT, cat TEXT, color TEXT, dec INTEGER,
@@ -777,22 +782,36 @@ CREATE TABLE supplement_rows (profile_key TEXT, item TEXT, order_text TEXT, star
 CREATE TABLE monitor_rows (profile_key TEXT, item TEXT, freq TEXT, last TEXT, next TEXT, note TEXT, ord INTEGER);
 CREATE TABLE endoscopy_rows (profile_key TEXT, d TEXT, kind TEXT, finding TEXT, next TEXT, note TEXT, ord INTEGER);
 CREATE TABLE viewpoints (profile_key TEXT, d TEXT, mood TEXT, text TEXT, ord INTEGER);
-CREATE TABLE trials (nct_id TEXT PRIMARY KEY, title TEXT, phase TEXT, status TEXT, sponsor TEXT, url TEXT);
+CREATE TABLE trials (nct_id TEXT PRIMARY KEY, title TEXT, phase TEXT, status TEXT, sponsor TEXT, url TEXT,
+  /* 0003：演示试验条目统一标 fictional=1（虚构示例，UI 标注「演示示例」） */
+  fictional INTEGER NOT NULL DEFAULT 1);
 CREATE TABLE demo_meta (k TEXT PRIMARY KEY, v TEXT);
 CREATE TABLE documents (profile_key TEXT, id TEXT, name TEXT, date TEXT, type TEXT, status TEXT, ord INTEGER, PRIMARY KEY (profile_key, id));
 CREATE TABLE candidate_fields (profile_key TEXT, id TEXT, name TEXT, value TEXT, source TEXT, status TEXT, ord INTEGER, PRIMARY KEY (profile_key, id));
 
+/* 0003_write_loop.sql 的两张新表：演示库不播种用户数据，只保证表结构与 schema 一致
+   （scripts/check-demo-columns.mjs 逐表比对表集合）。 */
+CREATE TABLE profile_facts (
+  profile_key TEXT NOT NULL, fact_key TEXT NOT NULL, fact_value TEXT, fact_order INTEGER,
+  PRIMARY KEY (profile_key, fact_key)
+);
+CREATE TABLE user_entries (
+  id TEXT PRIMARY KEY, profile_key TEXT, kind TEXT, data TEXT,
+  is_private INTEGER NOT NULL DEFAULT 0, created_on TEXT
+);
+
 CREATE INDEX idx_points  ON metric_points (profile_key, metric_key);
 CREATE INDEX idx_swallow ON swallow_rows  (profile_key, d);
 CREATE INDEX idx_docs    ON documents     (profile_key);
+CREATE INDEX idx_user_entries_profile_kind ON user_entries (profile_key, kind);
 `);
 
   const insSubject = db.prepare(`INSERT INTO subjects
     (profile_key, name, sex, age, meta, headline, stage, mindset, dash_keys, path,
      activity, family_talk, pathology_title, pathology_status, subtype_title, segment_title,
      pathway_title, surgery_title, swallow_title, access_title, nutrition_title, monitor_title, endoscopy_title,
-     dilation_title, access_events_title)
-    VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`);
+     dilation_title, access_events_title, is_demo, created_on)
+    VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`);
   const insMetric = db.prepare(`INSERT INTO metrics
     (profile_key, key, name, unit, cat, color, dec, kind, band_low, band_high, note)
     VALUES (?,?,?,?,?,?,?,?,?,?,?)`);
@@ -854,7 +873,9 @@ CREATE INDEX idx_docs    ON documents     (profile_key);
       p.monitor ? p.monitor.title : null,
       p.endoscopy ? p.endoscopy.title : null,
       p.dilation ? p.dilation.title : null,
-      p.accessEvents ? p.accessEvents.title : null);
+      p.accessEvents ? p.accessEvents.title : null,
+      1,                    /* is_demo=1：演示档案（用户自建档案走 createProfile，写 0） */
+      null);                /* created_on：演示数据不标创建日期，避免与真实录入混淆 */
 
     for (const m of p.metrics) {
       insMetric.run(k, m.key, m.name, m.unit ?? null, m.cat ?? null, m.color ?? null,
@@ -888,8 +909,8 @@ CREATE INDEX idx_docs    ON documents     (profile_key);
     p.candidates.forEach((c, i) => insCandidate.run(k, c[0], c[1], c[2], c[3], c[4], i));
   }
 
-  const insTrial = db.prepare('INSERT INTO trials (nct_id, title, phase, status, sponsor, url) VALUES (?,?,?,?,?,?)');
-  DATA.trials.forEach((t) => insTrial.run(t.id, t.title, t.phase, t.status, t.sponsor, t.url));
+  const insTrial = db.prepare('INSERT INTO trials (nct_id, title, phase, status, sponsor, url, fictional) VALUES (?,?,?,?,?,?,?)');
+  DATA.trials.forEach((t) => insTrial.run(t.id, t.title, t.phase, t.status, t.sponsor, t.url, 1));
   const insMeta = db.prepare('INSERT INTO demo_meta (k, v) VALUES (?,?)');
   buildMeta().forEach(([k, v]) => insMeta.run(k, v));
   db.close();

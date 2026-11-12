@@ -9,6 +9,7 @@
 | --- | --- |
 | `0001_initial.sql` | 5b9ce07433f88109741c10557276fb80ccdfc7abcc403f6b86c7dffe1a525148 |
 | `0002_section_titles.sql` | cc6ecf5617153b15db6f2343f5b652bc29508e69db45bbb43eeeaae3a8b86c32 |
+| `0003_write_loop.sql` | 011a0991d75a7114d17be246e7c4095c890dde3081d90b791fdedbcb6c52116d |
 
 ## 0001 的内容边界（写在冻结之前，便于日后审）
 
@@ -30,6 +31,25 @@
 
 > 列名避坑：`access_rows` 的"当前在用"列叫 **`in_use`**，不叫 `using` ——
 > `USING` 是 SQLite 保留字，裸写 `using INTEGER` 会在建表时报 `near "using": syntax error`。
+
+## 0003 的内容边界
+
+写入闭环（0.1.4）三件事，全部只增不改：
+
+- `subjects` 追加 `is_demo INTEGER NOT NULL DEFAULT 1` 与 `created_on TEXT`（ALTER 追加到末尾，
+  生成器镜像同步写在最后）。旧库升级时已有档案全部标 1（DEFAULT 1）——旧库里只有播种的演示
+  数据，这样标不回填猜测；`createProfile` 新建的档案写 `is_demo=0`。
+- `trials` 追加 `fictional INTEGER NOT NULL DEFAULT 1`：演示库的 10 条试验条目统一标虚构示例
+  （§1.2.9 最少改动方案：保留现有 10 条并逐条加 fictional 标记，UI 标注「演示示例」；
+  真实快照走 research/ 与 /api/trials 透传，两者不混标）。
+- 新建 `profile_facts(profile_key, fact_key, fact_value, fact_order, PK(profile_key,fact_key))`：
+  建档逐字段事实，空值跳过不落行。
+- 新建 `user_entries(id TEXT PRIMARY KEY, profile_key, kind, data, is_private, created_on)` +
+  `(profile_key, kind)` 索引：用户自记条目统一 JSON 落库（data 列），八类 kind 由服务层白名单校验；
+  私密切换按 id 更新 `is_private`，不改写历史。`id` 由服务层合成（`user-` + 补零序号）。
+
+`scripts/check-demo-columns.mjs` 会执行 0001–0003 全部迁移后与 `demo/build-demo-data.mjs` 的
+CREATE TABLE 镜像逐列比对：改这里必须同步改镜像（subjects 两列 + 两张新表）。
 
 ## 0002 的内容边界
 
